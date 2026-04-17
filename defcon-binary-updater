@@ -7,7 +7,7 @@ SCRIPT_VERSION="0.1.0"
 
 # --- Auto update defaults ---
 AUTO_DOWNLOAD_URL="https://www.dfcn.io/wp-content/uploads/downloads/defcon-linux.tgz"
-AUTO_DOWNLOAD_SHA256="89dd4d7f3536b2c581bee1bcad9d4ec6de874cc789bff31e7d55aee54799a3c2"
+AUTO_DOWNLOAD_SHA256="08B6F1A141516F44810B05C2153ED00EB006BA79F0FA75048375ECF6C0DC317C"
 
 # --- Default paths ---
 DEFAULT_DEFCON_USER="defcon"
