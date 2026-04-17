@@ -923,12 +923,14 @@ verify_sha256_if_requested() {
     return 0
   fi
 
-  local actual
-  actual="$(sha256sum "${SELECTED_ARCHIVE_PATH}" | awk '{print $1}')"
-  echo "Expected SHA256 : ${SELECTED_SHA256}"
+  local actual expected
+  actual="$(sha256sum "${SELECTED_ARCHIVE_PATH}" | awk '{print $1}' | tr 'A-F' 'a-f')"
+  expected="$(echo "${SELECTED_SHA256}" | tr 'A-F' 'a-f')"
+
+  echo "Expected SHA256 : ${expected}"
   echo "Actual SHA256   : ${actual}"
 
-  if [[ "${actual}" != "${SELECTED_SHA256}" ]]; then
+  if [[ "${actual}" != "${expected}" ]]; then
     error "SHA256 verification failed. Aborting."
     exit 1
   fi
