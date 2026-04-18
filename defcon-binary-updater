@@ -700,12 +700,12 @@ show_post_start_checks() {
   local health_ok=1
 
   while (( attempts < max_attempts )); do
-    if timeout 10 run_cli getbestblockhash >/dev/null 2>&1; then
+    if timeout 10 "${DEFAULT_CLI}" -datadir="${DEFAULT_DATA_DIR}" -conf="${DEFAULT_CONF_FILE}" getbestblockhash >/dev/null 2>&1; then
       health_ok=0
       break
     fi
 
-    if timeout 10 run_cli getnetworkinfo >/dev/null 2>&1; then
+    if timeout 10 "${DEFAULT_CLI}" -datadir="${DEFAULT_DATA_DIR}" -conf="${DEFAULT_CONF_FILE}" getnetworkinfo >/dev/null 2>&1; then
       health_ok=0
       break
     fi
@@ -718,12 +718,12 @@ show_post_start_checks() {
   if [[ ${health_ok} -eq 0 ]]; then
     success "RPC is responding."
 
-    if timeout 10 run_cli getbestblockhash >/dev/null 2>&1; then
-      echo "Best block hash    : $(run_cli getbestblockhash 2>/dev/null || echo unknown)"
+    if timeout 10 "${DEFAULT_CLI}" -datadir="${DEFAULT_DATA_DIR}" -conf="${DEFAULT_CONF_FILE}" getbestblockhash >/dev/null 2>&1; then
+      echo "Best block hash    : $(${DEFAULT_CLI} -datadir="${DEFAULT_DATA_DIR}" -conf="${DEFAULT_CONF_FILE}" getbestblockhash 2>/dev/null || echo unknown)"
     fi
 
-    if timeout 10 run_cli getblockcount >/dev/null 2>&1; then
-      echo "Block height       : $(run_cli getblockcount 2>/dev/null || echo unknown)"
+    if timeout 10 "${DEFAULT_CLI}" -datadir="${DEFAULT_DATA_DIR}" -conf="${DEFAULT_CONF_FILE}" getblockcount >/dev/null 2>&1; then
+      echo "Block height       : $(${DEFAULT_CLI} -datadir="${DEFAULT_DATA_DIR}" -conf="${DEFAULT_CONF_FILE}" getblockcount 2>/dev/null || echo unknown)"
     else
       warn "getblockcount is not responding yet, although RPC is reachable."
       FINAL_RESULT="warning"
