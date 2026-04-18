@@ -607,7 +607,7 @@ show_stop_summary() {
       echo "Service boot  : disabled or masked"
     fi
   else
-    echo "Service state : service unit not found"
+    echo "Service state : service unit not loaded"
   fi
 
   if pgrep -af "${DEFAULT_DAEMON}" >/dev/null 2>&1; then
@@ -684,11 +684,26 @@ show_post_start_checks() {
   info "Checking whether the masternode is running cleanly after start..."
   check_service_and_process
 
-  if timeout 10 run_cli getblockcount >/dev/null 2>&1; then
+  local attempts=0
+  local max_attempts=3
+  local sleep_between=10
+  local rpc_ok=1
+
+  while (( attempts < max_attempts )); do
+    if timeout 10 run_cli getblockcount >/dev/null 2>&1; then
+      rpc_ok=0
+      break
+    fi
+    attempts=$((attempts + 1))
+    info "RPC not yet responding, waiting ${sleep_between}s... (attempt ${attempts}/${max_attempts})"
+    sleep "${sleep_between}"
+  done
+
+  if [[ ${rpc_ok} -eq 0 ]]; then
     success "RPC is responding."
     echo "Block height       : $(run_cli getblockcount 2>/dev/null || echo unknown)"
   else
-    error "RPC is not yet responding."
+    error "RPC is not responding after ${max_attempts} attempts."
   fi
 
   echo
