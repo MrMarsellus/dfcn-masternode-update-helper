@@ -389,6 +389,7 @@ check_service_and_process() {
   # Debug: log what systemctl actually returns
   info "Debug: systemctl list-unit-files | head -n 5:"
   systemctl list-unit-files | head -n 5
+  info "Debug: DEFAULT_SERVICE='${DEFAULT_SERVICE}'"
 
   if systemctl list-unit-files | awk '{print $1}' | grep -qx "${DEFAULT_SERVICE}.service"; then
     echo "Service unit       : found (${DEFAULT_SERVICE}.service)"
