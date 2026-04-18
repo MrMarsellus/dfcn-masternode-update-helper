@@ -560,23 +560,6 @@ stop_daemon_cautious() {
     return 0
   fi
 
-  info "Trying systemctl stop first..."
-  systemctl stop "${DEFAULT_SERVICE}" >/dev/null 2>&1 || warn "systemctl stop did not succeed."
-  sleep 8
-  verify_daemon_stopped && { success "Daemon already appears to be cleanly stopped."; return 0; }
-
-  if ask_yes_no "Do you want to temporarily disable the service to prevent auto-restarts?"; then
-    info "Trying systemctl disable..."
-    if systemctl disable "${DEFAULT_SERVICE}" >/dev/null 2>&1; then
-      SERVICE_WAS_DISABLED=1
-      success "Service was temporarily disabled."
-    else
-      warn "systemctl disable did not succeed."
-    fi
-    sleep 3
-    verify_daemon_stopped && { success "Daemon is confirmed stopped after disable."; return 0; }
-  fi
-
   if pgrep -f "${DEFAULT_DAEMON}" >/dev/null 2>&1; then
     info "Trying RPC stop..."
     run_cli stop >/dev/null 2>&1 || warn "RPC stop did not succeed."
@@ -585,7 +568,7 @@ stop_daemon_cautious() {
   fi
 
   if pgrep -f "${DEFAULT_DAEMON}" >/dev/null 2>&1; then
-    warn "Daemon is still running after systemctl stop and RPC stop."
+    warn "Daemon is still running after RPC stop."
     if ask_yes_no "Do you want to try a normal kill on remaining daemon processes?"; then
       pkill -f "${DEFAULT_DAEMON}" || warn "Normal kill did not succeed."
       sleep 5
@@ -602,8 +585,27 @@ stop_daemon_cautious() {
     fi
   fi
 
+  warn "A safe stopped state could not yet be confirmed."
+
+  if ask_yes_no "Do you want to stop and temporarily disable the service now?"; then
+    info "Trying systemctl stop ${DEFAULT_SERVICE}..."
+    systemctl stop "${DEFAULT_SERVICE}" >/dev/null 2>&1 || warn "systemctl stop did not succeed."
+    sleep 8
+
+    info "Trying systemctl disable ${DEFAULT_SERVICE}..."
+    if systemctl disable "${DEFAULT_SERVICE}" >/dev/null 2>&1; then
+      SERVICE_WAS_DISABLED=1
+      success "Service was temporarily disabled."
+    else
+      warn "systemctl disable did not succeed."
+    fi
+    sleep 3
+
+    verify_daemon_stopped && { success "Daemon is confirmed stopped after service stop/disable."; return 0; }
+  fi
+
   if pgrep -f "${DEFAULT_DAEMON}" >/dev/null 2>&1; then
-    warn "Daemon is still running after hard kill."
+    warn "Daemon is still running after service stop/disable."
     if ask_yes_no "Do you want to temporarily mask the service to block all restarts?"; then
       if systemctl mask "${DEFAULT_SERVICE}" >/dev/null 2>&1; then
         SERVICE_WAS_MASKED=1
