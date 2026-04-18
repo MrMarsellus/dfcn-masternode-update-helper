@@ -1269,16 +1269,18 @@ cleanup_backups_older_than_days() {
 
 cleanup_menu() {
   local choice
-  print_line
-  echo "Backup cleanup options:"
-  echo "  1) Delete all backups"
-  echo "  2) Delete only older backups, keep last N"
-  echo "  3) Delete only backups older than X days"
-  echo "  4) Only list existing backups"
-  print_line
 
   while true; do
-    read -r -p "Enter 1, 2, 3 or 4: " choice
+    print_line
+    echo "Backup cleanup options:"
+    echo "  1) Delete all backups"
+    echo "  2) Delete only older backups, keep last N"
+    echo "  3) Delete only backups older than X days"
+    echo "  4) Only list existing backups"
+    echo "  5) Return to main flow / exit cleanup"
+    print_line
+
+    read -r -p "Enter 1, 2, 3, 4 or 5: " choice
     case "$choice" in
       1)
         cleanup_all_backups
@@ -1294,10 +1296,16 @@ cleanup_menu() {
         ;;
       4)
         show_backup_list || true
+        echo
+        info "Backup list shown. You can now choose a cleanup option."
+        continue
+        ;;
+      5)
+        warn "Cleanup menu exited by user."
         return 0
         ;;
       *)
-        warn "Invalid selection. Please enter 1, 2, 3 or 4."
+        warn "Invalid selection. Please enter 1, 2, 3, 4 or 5."
         ;;
     esac
   done
