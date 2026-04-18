@@ -43,6 +43,7 @@ MIN_FREE_MB_DOWNLOAD=200
 MIN_FREE_MB_BACKUP=100
 EXPECTED_BINARY_COUNT_MIN=2
 EXPECTED_BINARY_NAMES="defcond defcon-cli"
+FINAL_RESULT="success"
 
 BACKUP_DIRS=()
 BACKUP_DISPLAY_LINES=()
@@ -696,34 +697,63 @@ show_post_start_checks() {
   local attempts=0
   local max_attempts=3
   local sleep_between=10
-  local rpc_ok=1
+  local health_ok=1
 
   while (( attempts < max_attempts )); do
-    if timeout 10 run_cli getblockcount >/dev/null 2>&1; then
-      rpc_ok=0
+    if timeout 10 run_cli getbestblockhash >/dev/null 2>&1; then
+      health_ok=0
       break
     fi
+
+    if timeout 10 run_cli getnetworkinfo >/dev/null 2>&1; then
+      health_ok=0
+      break
+    fi
+
     attempts=$((attempts + 1))
-    info "RPC not yet responding, waiting ${sleep_between}s... (attempt ${attempts}/${max_attempts})"
+    info "RPC health check not yet ready, waiting ${sleep_between}s... (attempt ${attempts}/${max_attempts})"
     sleep "${sleep_between}"
   done
 
-  if [[ ${rpc_ok} -eq 0 ]]; then
+  if [[ ${health_ok} -eq 0 ]]; then
     success "RPC is responding."
-    echo "Block height       : $(run_cli getblockcount 2>/dev/null || echo unknown)"
+
+    if timeout 10 run_cli getbestblockhash >/dev/null 2>&1; then
+      echo "Best block hash    : $(run_cli getbestblockhash 2>/dev/null || echo unknown)"
+    fi
+
+    if timeout 10 run_cli getblockcount >/dev/null 2>&1; then
+      echo "Block height       : $(run_cli getblockcount 2>/dev/null || echo unknown)"
+    else
+      warn "getblockcount is not responding yet, although RPC is reachable."
+      FINAL_RESULT="warning"
+    fi
   else
     error "RPC is not responding after ${max_attempts} attempts."
+    FINAL_RESULT="warning"
   fi
 
   echo
   echo "getnetworkinfo:"
-  run_cli getnetworkinfo 2>/dev/null || warn "getnetworkinfo failed."
+  if ! run_cli getnetworkinfo 2>/dev/null; then
+    warn "getnetworkinfo failed."
+    FINAL_RESULT="warning"
+  fi
+
   echo
   echo "mnsync status:"
-  run_cli mnsync status 2>/dev/null || warn "mnsync status failed."
+  if ! run_cli mnsync status 2>/dev/null; then
+    warn "mnsync status failed."
+    FINAL_RESULT="warning"
+  fi
+
   echo
   echo "masternode status:"
-  run_cli masternode status 2>/dev/null || warn "masternode status failed."
+  if ! run_cli masternode status 2>/dev/null; then
+    warn "masternode status failed."
+    FINAL_RESULT="warning"
+  fi
+
   print_line
 }
 
@@ -1389,7 +1419,25 @@ main() {
   esac
 
   print_line
-  echo "Script run completed."
+  if [[ "${FINAL_RESULT}" == "success" ]]; then
+    echo "Script run completed successfully."
+    if [[ "${SELECTED_ACTION}" == "update" ]]; then
+      echo "Update completed successfully."
+    elif [[ "${SELECTED_ACTION}" == "rollback" ]]; then
+      echo "Rollback completed successfully."
+    else
+      echo "Selected action completed successfully."
+    fi
+  else
+    echo "Script run completed with warnings."
+    if [[ "${SELECTED_ACTION}" == "update" ]]; then
+      echo "Update was installed, but post-start checks reported warnings."
+    elif [[ "${SELECTED_ACTION}" == "rollback" ]]; then
+      echo "Rollback was installed, but post-start checks reported warnings."
+    else
+      echo "Selected action completed, but warnings were reported."
+    fi
+  fi
   echo "Please continue monitoring the node."
   echo "Log file: ${LOG_FILE}"
   print_line
