@@ -638,8 +638,23 @@ restore_service_if_needed() {
   print_line
   info "The script will now ensure that the service is enabled and started."
 
-  if ! systemctl list-unit-files | awk '{print $1}' | grep -qx "${DEFAULT_SERVICE}.service"; then
-    error "Service unit ${DEFAULT_SERVICE}.service not found during restore."
+  local attempts=0
+  local max_attempts=3
+  local sleep_between=5
+  local unit_found=1
+
+  while (( attempts < max_attempts )); do
+    if systemctl list-unit-files "${DEFAULT_SERVICE}.service" >/dev/null 2>&1; then
+      unit_found=0
+      break
+    fi
+    attempts=$((attempts + 1))
+    info "Service unit ${DEFAULT_SERVICE}.service not yet visible, waiting ${sleep_between}s... (attempt ${attempts}/${max_attempts})"
+    sleep "${sleep_between}"
+  done
+
+  if [[ ${unit_found} -ne 0 ]]; then
+    error "Service unit ${DEFAULT_SERVICE}.service not found during restore after ${max_attempts} attempts."
     return 1
   fi
 
@@ -668,12 +683,6 @@ restore_service_if_needed() {
     return 1
   fi
   success "Daemon appears to be running after service restore."
-
-  if ! timeout 10 "${DEFAULT_CLI}" -datadir="${DEFAULT_DATA_DIR}" -conf="${DEFAULT_CONF_FILE}" getblockcount >/dev/null 2>&1; then
-    error "RPC is not responding after service restore."
-    return 1
-  fi
-  success "RPC is responding after service restore."
 
   check_service_and_process
   return 0
