@@ -4,7 +4,7 @@ Interactive Bash helper script for updating DeFCoN masternode binaries on a VPS.
 
 ## Features
 
-- Binary update.  
+- Binary update (automatic update using predefined default URL or enter download URL or local archive path manually).
 - Binary rollback.  
 - Backup cleanup.  
 - Automatic backup of the current binaries before installing an update.  
