@@ -386,6 +386,10 @@ check_service_and_process() {
   print_line
   info "Checking service and daemon process..."
 
+  # Debug: log what systemctl actually returns
+  info "Debug: systemctl list-unit-files | head -n 5:"
+  systemctl list-unit-files | head -n 5
+
   if systemctl list-unit-files | awk '{print $1}' | grep -qx "${DEFAULT_SERVICE}.service"; then
     echo "Service unit       : found (${DEFAULT_SERVICE}.service)"
     if systemctl is-active --quiet "${DEFAULT_SERVICE}"; then
