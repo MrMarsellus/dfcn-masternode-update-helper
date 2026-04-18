@@ -1277,7 +1277,7 @@ cleanup_menu() {
     echo "  2) Delete only older backups, keep last N"
     echo "  3) Delete only backups older than X days"
     echo "  4) Only list existing backups"
-    echo "  5) Return to main flow / exit cleanup"
+    echo "  5) Return to main menu"
     print_line
 
     read -r -p "Enter 1, 2, 3, 4 or 5: " choice
@@ -1301,8 +1301,8 @@ cleanup_menu() {
         continue
         ;;
       5)
-        warn "Cleanup menu exited by user."
-        return 0
+        info "Returning to main menu..."
+        return 1
         ;;
       *)
         warn "Invalid selection. Please enter 1, 2, 3, 4 or 5."
@@ -1408,23 +1408,32 @@ main() {
   show_defaults
   get_current_version
   ensure_daemon_running
-  choose_action
 
-  case "${SELECTED_ACTION}" in
-    update)
-      run_update
-      ;;
-    rollback)
-      run_rollback
-      ;;
-    cleanup)
-      run_cleanup
-      ;;
-    *)
-      error "Unknown action."
-      exit 1
-      ;;
-  esac
+  while true; do
+    choose_action
+
+    case "${SELECTED_ACTION}" in
+      update)
+        run_update
+        break
+        ;;
+      rollback)
+        run_rollback
+        break
+        ;;
+      cleanup)
+        if cleanup_menu; then
+          break
+        else
+          continue
+        fi
+        ;;
+      *)
+        error "Unknown action."
+        exit 1
+        ;;
+    esac
+  done
 
   print_line
   if [[ "${FINAL_RESULT}" == "success" ]]; then
@@ -1433,6 +1442,8 @@ main() {
       echo "Update completed successfully."
     elif [[ "${SELECTED_ACTION}" == "rollback" ]]; then
       echo "Rollback completed successfully."
+    elif [[ "${SELECTED_ACTION}" == "cleanup" ]]; then
+      echo "Cleanup completed successfully."
     else
       echo "Selected action completed successfully."
     fi
