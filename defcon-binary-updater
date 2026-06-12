@@ -3,7 +3,7 @@
 set -u
 set -o pipefail
 
-SCRIPT_VERSION="0.1.1"
+SCRIPT_VERSION="0.2.0"
 
 # --- Auto update defaults ---
 AUTO_DOWNLOAD_URL="https://github.com/defcon-project/defcon/releases/download/893e6b2/defcon-linux.tgz"
@@ -53,6 +53,8 @@ BACKUP_SIZES=()
 BACKUP_SOURCES=()
 BACKUP_ACTIONS=()
 
+AUTO_MODE=0
+
 print_line() {
   echo "------------------------------------------------------------"
 }
@@ -92,6 +94,15 @@ ask_yes_no() {
     y|Y|yes|YES) return 0 ;;
     *) return 1 ;;
   esac
+}
+
+ask_yes_no_auto() {
+  local prompt="$1"
+  if [[ "${AUTO_MODE}" -eq 1 ]]; then
+    info "${prompt} [y/N]: y (auto)"
+    return 0
+  fi
+  ask_yes_no "$prompt"
 }
 
 trim() {
@@ -850,28 +861,37 @@ choose_action() {
   local choice
   print_line
   echo "Select action:"
-  echo "  1) Binary update"
-  echo "  2) Binary rollback"
-  echo "  3) Cleanup existing backups"
+  echo "  1) Auto binary update using predefined file"
+  echo "  2) Manual binary update (predefined file or custom URL)"
+  echo "  3) Rollback to existing backup"
+  echo "  4) Cleanup existing backups"
   print_line
 
   while true; do
-    read -r -p "Enter 1, 2 or 3: " choice
+    read -r -p "Enter 1, 2, 3 or 4: " choice
     case "$choice" in
       1)
-        SELECTED_ACTION="update"
+        SELECTED_ACTION="auto-update"
+        AUTO_MODE=1
         return 0
         ;;
       2)
-        SELECTED_ACTION="rollback"
+        SELECTED_ACTION="update"
+        AUTO_MODE=0
         return 0
         ;;
       3)
+        SELECTED_ACTION="rollback"
+        AUTO_MODE=0
+        return 0
+        ;;
+      4)
         SELECTED_ACTION="cleanup"
+        AUTO_MODE=0
         return 0
         ;;
       *)
-        warn "Invalid selection. Please enter 1, 2 or 3."
+        warn "Invalid selection. Please enter 1, 2, 3 or 4."
         ;;
     esac
   done
@@ -969,7 +989,8 @@ show_plan_summary() {
   echo "Planned action:"
   echo "Action            : ${SELECTED_ACTION}"
   echo "Current version   : ${CURRENT_VERSION}"
-  if [[ "${SELECTED_ACTION}" == "update" ]]; then
+
+  if [[ "${SELECTED_ACTION}" == "update" || "${SELECTED_ACTION}" == "auto-update" ]]; then
     echo "Source mode       : ${UPDATE_SOURCE_MODE}"
     echo "Source type       : ${SELECTED_SOURCE_TYPE}"
     echo "Source            : ${SELECTED_SOURCE}"
@@ -980,6 +1001,7 @@ show_plan_summary() {
     echo "Rollback source   : ${ROLLBACK_SOURCE}"
     echo "Rollback action   : ${ROLLBACK_ACTION}"
   fi
+
   echo "Install target    : ${DEFAULT_INSTALL_DIR}"
   echo "Backup base       : ${BACKUP_BASE_DIR}"
   echo "Service           : ${DEFAULT_SERVICE}"
@@ -1366,7 +1388,7 @@ cleanup_menu() {
     echo "  2) Delete only older backups, keep last N"
     echo "  3) Delete only backups older than X days"
     echo "  4) Only list existing backups"
-    echo "  5) Return to main menu"
+    echo "  5) Exit cleanup"
     print_line
 
     read -r -p "Enter 1, 2, 3, 4 or 5: " choice
@@ -1390,8 +1412,8 @@ cleanup_menu() {
         continue
         ;;
       5)
-        info "Returning to main menu..."
-        return 1
+        info "Leaving cleanup menu without changes."
+        return 0
         ;;
       *)
         warn "Invalid selection. Please enter 1, 2, 3, 4 or 5."
@@ -1418,6 +1440,47 @@ perform_rollback_install() {
 
   success "Rollback binaries were installed successfully."
   echo "Rollback version   : $(get_binary_version "${DEFAULT_DAEMON}")"
+}
+
+run_auto_update() {
+  AUTO_MODE=1
+  SELECTED_ACTION="auto-update"
+  UPDATE_SOURCE_MODE="auto"
+  SELECTED_SOURCE_TYPE="url"
+  SELECTED_SOURCE="${AUTO_DOWNLOAD_URL}"
+  SELECTED_SHA256="${AUTO_DOWNLOAD_SHA256}"
+
+  validate_update_selection
+  TARGET_VERSION_FROM_FILENAME="$(version_from_filename "${SELECTED_SOURCE}")"
+  show_plan_summary
+
+  if ! ask_yes_no_auto "Continue with the update?"; then
+    warn "Update was cancelled."
+    exit 0
+  fi
+
+  check_free_space_or_exit "/tmp" "${MIN_FREE_MB_DOWNLOAD}" "download/extraction"
+  fetch_archive
+  verify_sha256_if_requested
+  extract_archive
+  create_binary_backup
+
+  if ! ask_yes_no_auto "Stop daemon now and install the update?"; then
+    warn "Update was aborted before installation step."
+    exit 0
+  fi
+
+  stop_daemon_cautious || exit 1
+  install_new_binaries
+
+  if systemctl status "${DEFAULT_SERVICE}.service" >/dev/null 2>&1; then
+    systemctl daemon-reload >/dev/null 2>&1 || true
+  fi
+
+  success "Update installed successfully."
+
+  restore_service_if_needed || exit 1
+  show_post_start_checks
 }
 
 run_update() {
@@ -1498,55 +1561,34 @@ main() {
   get_current_version
   ensure_daemon_running
 
-  while true; do
-    choose_action
+  choose_action
 
-    case "${SELECTED_ACTION}" in
-      update)
-        run_update
-        break
-        ;;
-      rollback)
-        run_rollback
-        break
-        ;;
-      cleanup)
-        if cleanup_menu; then
-          break
-        else
-          continue
-        fi
-        ;;
-      *)
-        error "Unknown action."
-        exit 1
-        ;;
-    esac
-  done
+  case "${SELECTED_ACTION}" in
+    auto-update)
+      run_auto_update
+      ;;
+    update)
+      run_update
+      ;;
+    rollback)
+      run_rollback
+      ;;
+    cleanup)
+      run_cleanup
+      ;;
+    *)
+      error "Unknown action selected: ${SELECTED_ACTION}"
+      exit 1
+      ;;
+  esac
 
   print_line
   if [[ "${FINAL_RESULT}" == "success" ]]; then
     echo "Script run completed successfully."
-    if [[ "${SELECTED_ACTION}" == "update" ]]; then
-      echo "Update completed successfully."
-    elif [[ "${SELECTED_ACTION}" == "rollback" ]]; then
-      echo "Rollback completed successfully."
-    elif [[ "${SELECTED_ACTION}" == "cleanup" ]]; then
-      echo "Cleanup completed successfully."
-    else
-      echo "Selected action completed successfully."
-    fi
   else
     echo "Script run completed with warnings."
-    if [[ "${SELECTED_ACTION}" == "update" ]]; then
-      echo "Update was installed, but post-start checks reported warnings."
-    elif [[ "${SELECTED_ACTION}" == "rollback" ]]; then
-      echo "Rollback was installed, but post-start checks reported warnings."
-    else
-      echo "Selected action completed, but warnings were reported."
-    fi
   fi
-  echo "Please continue monitoring the node."
+  print_line
   echo "Log file: ${LOG_FILE}"
   print_line
 }
