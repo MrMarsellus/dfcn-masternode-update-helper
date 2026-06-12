@@ -55,6 +55,9 @@ BACKUP_ACTIONS=()
 
 AUTO_MODE=0
 
+MASTERNODE_READY_TIMEOUT=3600
+MASTERNODE_READY_INTERVAL=10
+
 print_line() {
   echo "------------------------------------------------------------"
 }
@@ -182,8 +185,8 @@ install_package_if_missing() {
 }
 
 wait_for_masternode_ready() {
-  local timeout_seconds="${1:-900}"
-  local interval_seconds="${2:-10}"
+  local timeout_seconds="${1:-$MASTERNODE_READY_TIMEOUT}"
+  local interval_seconds="${2:-$MASTERNODE_READY_INTERVAL}"
   local start_ts now elapsed
   local mn_json sync_json
   local state status synced blockchain_synced
@@ -847,7 +850,7 @@ show_post_start_checks() {
     FINAL_RESULT="warning"
   fi
 
-  if wait_for_masternode_ready 900 10; then
+  if wait_for_masternode_ready "${MASTERNODE_READY_TIMEOUT}" "${MASTERNODE_READY_INTERVAL}"; then
     success "Node is fully ready."
   else
     FINAL_RESULT="warning"
