@@ -134,6 +134,42 @@ parse_args() {
   done
 }
 
+install_package_if_missing() {
+  local cmd="$1"
+  local pkg="$2"
+
+  if command -v "$cmd" >/dev/null 2>&1; then
+    return 0
+  fi
+
+  warn "Command missing: ${cmd}"
+  info "Trying to install package: ${pkg}"
+
+  if ! command -v apt-get >/dev/null 2>&1; then
+    error "apt-get not found. Cannot auto-install ${pkg}."
+    exit 1
+  fi
+
+  export DEBIAN_FRONTEND=noninteractive
+
+  if ! apt-get update; then
+    error "apt-get update failed."
+    exit 1
+  fi
+
+  if ! apt-get install -y "${pkg}"; then
+    error "Failed to install package: ${pkg}"
+    exit 1
+  fi
+
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    error "Command still missing after install: ${cmd}"
+    exit 1
+  fi
+
+  success "Installed missing command: ${cmd}"
+}
+
 get_free_mb_for_path() {
   local path="$1"
   df -Pm "$path" 2>/dev/null | awk 'NR==2 {print $4}'
@@ -281,12 +317,14 @@ check_binaries() {
   fi
 
   local required
-  for required in jq timeout grep awk sed tar sha256sum file pgrep pkill systemctl find sort head date cp mv chmod mkdir rm ls du basename readlink stat tail wc cut tr; do
+  for required in jq timeout grep awk sed tar sha256sum pgrep pkill systemctl find sort head date cp mv chmod mkdir rm ls du basename readlink stat tail wc cut tr; do
     if ! command -v "$required" >/dev/null 2>&1; then
       error "Required command is missing: $required"
       exit 1
     fi
   done
+
+  install_package_if_missing file file
 
   if ! command -v curl >/dev/null 2>&1 && ! command -v wget >/dev/null 2>&1; then
     error "Either curl or wget is required but neither was found."
