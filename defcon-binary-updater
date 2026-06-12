@@ -3,7 +3,7 @@
 set -u
 set -o pipefail
 
-SCRIPT_VERSION="0.1.0"
+SCRIPT_VERSION="0.1.1"
 
 # --- Auto update defaults ---
 AUTO_DOWNLOAD_URL="https://github.com/defcon-project/defcon/releases/download/893e6b2/defcon-linux.tgz"
@@ -168,6 +168,50 @@ install_package_if_missing() {
   fi
 
   success "Installed missing command: ${cmd}"
+}
+
+wait_for_masternode_ready() {
+  local timeout_seconds="${1:-900}"
+  local interval_seconds="${2:-10}"
+  local start_ts now elapsed
+  local mn_json sync_json
+  local state status synced blockchain_synced
+
+  start_ts=$(date +%s)
+
+  while true; do
+    mn_json="$(run_cli masternode status 2>/dev/null || true)"
+    sync_json="$(run_cli mnsync status 2>/dev/null || true)"
+
+    state="$(jq -r '.state // empty' <<<"${mn_json}" 2>/dev/null || true)"
+    status="$(jq -r '.status // empty' <<<"${mn_json}" 2>/dev/null || true)"
+    synced="$(jq -r '.IsSynced // empty' <<<"${sync_json}" 2>/dev/null || true)"
+    blockchain_synced="$(jq -r '.IsBlockchainSynced // empty' <<<"${sync_json}" 2>/dev/null || true)"
+
+    if [[ "${state}" == "READY" && "${status}" == "Ready" && "${synced}" == "true" && "${blockchain_synced}" == "true" ]]; then
+      return 0
+    fi
+
+    now=$(date +%s)
+    elapsed=$((now - start_ts))
+    if (( elapsed >= timeout_seconds )); then
+      error "Node is still not ready after $((timeout_seconds / 60)) minutes."
+      echo "Last known state           : ${state:-unknown}"
+      echo "Last known status          : ${status:-unknown}"
+      echo "mnsync IsSynced            : ${synced:-unknown}"
+      echo "mnsync IsBlockchainSynced  : ${blockchain_synced:-unknown}"
+      echo
+      echo "Last masternode status:"
+      echo "${mn_json:-<empty>}"
+      echo
+      echo "Last mnsync status:"
+      echo "${sync_json:-<empty>}"
+      return 1
+    fi
+
+    info "Node not ready yet; checking again in ${interval_seconds}s... (${elapsed}s elapsed)"
+    sleep "${interval_seconds}"
+  done
 }
 
 get_free_mb_for_path() {
@@ -790,6 +834,13 @@ show_post_start_checks() {
   if ! run_cli masternode status 2>/dev/null; then
     warn "masternode status failed."
     FINAL_RESULT="warning"
+  fi
+
+  if wait_for_masternode_ready 900 10; then
+    success "Node is fully ready."
+  else
+    FINAL_RESULT="warning"
+    warn "Node is started, but final readiness check timed out or reported warnings."
   fi
 
   print_line
