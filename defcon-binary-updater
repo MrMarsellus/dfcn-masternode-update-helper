@@ -6,8 +6,8 @@ set -o pipefail
 SCRIPT_VERSION="0.1.0"
 
 # --- Auto update defaults ---
-AUTO_DOWNLOAD_URL="https://www.dfcn.io/wp-content/uploads/downloads/defcon-linux.tgz"
-AUTO_DOWNLOAD_SHA256="6ff3d32a5c717535b3210ae6f6b057f0f137aa1811748a80dbe0a1df9a4a563a"
+AUTO_DOWNLOAD_URL="https://github.com/defcon-project/defcon/releases/download/893e6b2/defcon-linux.tgz"
+AUTO_DOWNLOAD_SHA256="0bc08abfaf7b31fbf8f9b9118eec1eb24e64da41db3d5a42bba15e95544b44ee"
 
 # --- Default paths ---
 DEFAULT_DEFCON_USER="defcon"
