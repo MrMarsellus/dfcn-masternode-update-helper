@@ -23,7 +23,7 @@ cd /root && curl -fsSLo defcon-binary-updater.sh https://raw.githubusercontent.c
 
 ## Dry-run
 
-Recommended before first live use. Dry-run is useful because it shows the planned actions without making destructive changes.
+Recommended before first live use. Dry-run is useful because it shows the planned actions and helps test the workflow before a real update or rollback.
 
 ```bash
 cd /root && curl -fsSLo defcon-binary-updater.sh https://raw.githubusercontent.com/MrMarsellus/dfcn-masternode-update-helper/main/defcon-binary-updater && chmod +x defcon-binary-updater.sh && sudo ./defcon-binary-updater.sh --dry-run
